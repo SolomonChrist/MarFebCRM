@@ -1,0 +1,37 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  @apply border-gray-200;
+}
+
+* .dark {
+  @apply border-[#2d2d2d];
+}
+
+html {
+  @apply scroll-smooth;
+}
+
+body {
+  @apply bg-white text-gray-900 font-['Inter'];
+}
+
+body.dark {
+  @apply bg-[#0f0f0f] text-[#f9fafb];
+}
+
+code, pre {
+  @apply font-['JetBrains_Mono'];
+}
+
+/* Smooth transitions */
+@layer utilities {
+  .transition-theme {
+    @apply transition-colors duration-300;
+  }
+}
