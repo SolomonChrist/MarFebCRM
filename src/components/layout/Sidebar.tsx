@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Home, Users, FolderOpen, Bell, Settings, Sun, Moon, LogOut, BarChart3 } from 'lucide-react';
+import { Home, Users, FolderOpen, Bell, Settings, Sun, Moon, LogOut, BarChart3, Clock } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useUIStore, type Theme } from '../../store/useUIStore';
 
@@ -45,8 +45,8 @@ export default function Sidebar() {
           <NavLink to="/" icon={<Home size={20} />} label="Dashboard" />
           <NavLink to="/contacts" icon={<Users size={20} />} label="Contacts" />
           <NavLink to="/relationships" icon={<BarChart3 size={20} />} label="Relationships" />
+          <NavLink to="/reminders" icon={<Clock size={20} />} label="Reminders" />
           <NavLink to="/groups" icon={<FolderOpen size={20} />} label="Groups" />
-          <NavLink to="/reminders" icon={<Bell size={20} />} label="Reminders" />
         </nav>
 
         {/* Settings */}
