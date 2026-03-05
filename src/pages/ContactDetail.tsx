@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit2, Save, X, Plus, Trash2, Phone } from 'lucide-react';
+import { ArrowLeft, Edit2, Save, X, Plus, Trash2, Phone, Clock } from 'lucide-react';
 import { useUIStore } from '../store/useUIStore';
-import { Contact, Interaction } from '../services/contacts/contactService';
+import { Contact, Interaction, Reminder, loadReminders, saveReminders } from '../services/contacts/contactService';
 import { loadContacts, saveContacts } from '../services/storage/localStorageService';
 import QuickInteractionLogger from '../components/interactions/QuickInteractionLogger';
+import ReminderModal from '../components/reminders/ReminderModal';
 
 interface ContactNote {
   id: string;
@@ -28,11 +29,13 @@ export default function ContactDetail() {
   const [notes, setNotes] = useState<ContactNote[]>([]);
   const [nextSteps, setNextSteps] = useState<NextStep[]>([]);
   const [interactions, setInteractions] = useState<Interaction[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [newNote, setNewNote] = useState('');
   const [newNextStep, setNewNextStep] = useState('');
   const [showInteractionLogger, setShowInteractionLogger] = useState(false);
+  const [showReminderModal, setShowReminderModal] = useState(false);
   const [interactionFilter, setInteractionFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
 
@@ -113,6 +116,15 @@ export default function ContactDetail() {
         } catch (error) {
           // Remove corrupted interactions data
           localStorage.removeItem(`contact_${found.id}_interactions`);
+        }
+
+        // Load reminders for this contact
+        try {
+          const allReminders = loadReminders();
+          const contactReminders = allReminders.filter(r => r.contactId === found.id);
+          setReminders(contactReminders);
+        } catch (error) {
+          console.error('Error loading reminders:', error);
         }
       } catch (error) {
         console.error('Error loading contact:', error);
@@ -330,6 +342,59 @@ export default function ContactDetail() {
     } catch (error) {
       console.error('Error deleting interaction:', error);
       addToast({ message: 'Failed to delete interaction', type: 'error' });
+    }
+  };
+
+  const handleAddReminder = async (reminder: Reminder) => {
+    if (!contact) return;
+
+    try {
+      const allReminders = loadReminders();
+      const updatedReminders = [reminder, ...allReminders];
+      saveReminders(updatedReminders);
+      setReminders([reminder, ...reminders]);
+      setShowReminderModal(false);
+      addToast({ message: 'Reminder set successfully', type: 'success' });
+    } catch (error) {
+      console.error('Error adding reminder:', error);
+      addToast({ message: 'Failed to set reminder', type: 'error' });
+    }
+  };
+
+  const handleCompleteReminder = async (reminderId: string) => {
+    try {
+      const allReminders = loadReminders();
+      const updated = allReminders.map(r =>
+        r.id === reminderId ? { ...r, completed: !r.completed } : r
+      );
+      saveReminders(updated);
+
+      const contactReminders = updated.filter(r => r.contactId === id);
+      setReminders(contactReminders);
+      addToast({
+        message: updated.find(r => r.id === reminderId)?.completed ? 'Reminder completed' : 'Reminder reopened',
+        type: 'success'
+      });
+    } catch (error) {
+      console.error('Error updating reminder:', error);
+      addToast({ message: 'Failed to update reminder', type: 'error' });
+    }
+  };
+
+  const handleDeleteReminder = async (reminderId: string) => {
+    if (!window.confirm('Delete this reminder?')) return;
+
+    try {
+      const allReminders = loadReminders();
+      const updated = allReminders.filter(r => r.id !== reminderId);
+      saveReminders(updated);
+
+      const contactReminders = updated.filter(r => r.contactId === id);
+      setReminders(contactReminders);
+      addToast({ message: 'Reminder deleted', type: 'success' });
+    } catch (error) {
+      console.error('Error deleting reminder:', error);
+      addToast({ message: 'Failed to delete reminder', type: 'error' });
     }
   };
 
@@ -604,13 +669,20 @@ export default function ContactDetail() {
 
             {/* Add Note & Next Step */}
             <div className="space-y-4 mb-8 pb-6 border-b border-gray-200 dark:border-[#2d2d2d]">
-              <div>
+              <div className="flex gap-3">
                 <button
                   onClick={() => setShowInteractionLogger(true)}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition mb-4"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition"
                 >
                   <Phone size={18} />
                   Log Interaction
+                </button>
+                <button
+                  onClick={() => setShowReminderModal(true)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition"
+                >
+                  <Clock size={18} />
+                  Set Reminder
                 </button>
               </div>
 
@@ -782,6 +854,55 @@ export default function ContactDetail() {
               )}
             </div>
           </div>
+
+          {/* Reminders Section */}
+          {reminders.length > 0 && (
+            <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-[#2d2d2d] p-6">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6">🔔 Reminders</h3>
+              <div className="space-y-3">
+                {reminders.map((reminder) => (
+                  <div
+                    key={reminder.id}
+                    className={`p-4 rounded-lg border transition ${
+                      reminder.completed
+                        ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                        : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-3 flex-1">
+                        <input
+                          type="checkbox"
+                          checked={reminder.completed}
+                          onChange={() => handleCompleteReminder(reminder.id)}
+                          className="w-4 h-4 cursor-pointer"
+                        />
+                        <div className="flex-1">
+                          <p className={`font-medium text-gray-900 dark:text-white ${reminder.completed ? 'line-through opacity-60' : ''}`}>
+                            {reminder.title}
+                          </p>
+                          {reminder.description && (
+                            <p className={`text-sm text-gray-600 dark:text-gray-400 mt-1 ${reminder.completed ? 'line-through opacity-60' : ''}`}>
+                              {reminder.description}
+                            </p>
+                          )}
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                            Due: {formatDate(reminder.reminderDate)}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteReminder(reminder.id)}
+                        className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Sidebar */}
@@ -833,6 +954,12 @@ export default function ContactDetail() {
                 <p className="text-sm text-gray-600 dark:text-gray-400">Interactions</p>
                 <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{interactions.length}</p>
               </div>
+              {reminders.length > 0 && (
+                <div className="pt-3 border-t border-gray-200 dark:border-[#2d2d2d]">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Active Reminders</p>
+                  <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{reminders.filter(r => !r.completed).length}</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -871,6 +998,16 @@ export default function ContactDetail() {
           relationshipType={contact.relationshipType || 'business'}
           onClose={() => setShowInteractionLogger(false)}
           onLogInteraction={handleLogInteraction}
+        />
+      )}
+
+      {/* Reminder Modal */}
+      {showReminderModal && contact && (
+        <ReminderModal
+          contactId={contact.id}
+          contactName={`${contact.firstName} ${contact.lastName || ''}`}
+          onClose={() => setShowReminderModal(false)}
+          onAddReminder={handleAddReminder}
         />
       )}
     </div>

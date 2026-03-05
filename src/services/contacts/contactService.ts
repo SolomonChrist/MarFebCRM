@@ -53,6 +53,19 @@ export interface Interaction {
   occurredAt: string;
 }
 
+export interface Reminder {
+  id: string;
+  contactId: string;
+  contactName: string;
+  reminderType: 'date' | 'days_from_now';
+  reminderDate: string; // ISO date string
+  reminderDays?: number; // days from now (if reminderType === 'days_from_now')
+  title: string;
+  description?: string;
+  completed: boolean;
+  createdAt: string;
+}
+
 export interface TimelineEntry {
   id: string;
   contactId: string;
@@ -372,6 +385,69 @@ export function saveContactInteractions(contactId: string, interactions: Interac
   } catch (error) {
     console.error('Error saving interactions:', error);
   }
+}
+
+/**
+ * Load reminders for all contacts
+ */
+export function loadReminders(): Reminder[] {
+  try {
+    const data = localStorage.getItem('marfebcrm_reminders');
+    if (!data) return [];
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error('Error loading reminders:', error);
+    return [];
+  }
+}
+
+/**
+ * Save all reminders
+ */
+export function saveReminders(reminders: Reminder[]): void {
+  try {
+    localStorage.setItem('marfebcrm_reminders', JSON.stringify(reminders));
+  } catch (error) {
+    console.error('Error saving reminders:', error);
+  }
+}
+
+/**
+ * Create a new reminder
+ */
+export function createReminder(
+  contactId: string,
+  contactName: string,
+  data: {
+    reminderType: 'date' | 'days_from_now';
+    reminderDate?: string;
+    reminderDays?: number;
+    title: string;
+    description?: string;
+  }
+): Reminder {
+  const id = uuidv4();
+  const now = new Date();
+  let reminderDate = data.reminderDate || '';
+
+  if (data.reminderType === 'days_from_now' && data.reminderDays) {
+    const date = new Date(now.getTime() + data.reminderDays * 24 * 60 * 60 * 1000);
+    reminderDate = date.toISOString().split('T')[0];
+  }
+
+  return {
+    id,
+    contactId,
+    contactName,
+    reminderType: data.reminderType,
+    reminderDate,
+    reminderDays: data.reminderDays,
+    title: data.title,
+    description: data.description,
+    completed: false,
+    createdAt: now.toISOString(),
+  };
 }
 
 /**
