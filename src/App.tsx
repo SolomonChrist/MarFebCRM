@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import ContactsPage from './pages/Contacts';
 import ContactDetail from './pages/ContactDetail';
 import GroupsPage from './pages/Groups';
+import RelationshipDashboard from './pages/RelationshipDashboard';
 import SettingsPage from './pages/Settings';
 import Layout from './components/layout/Layout';
 
@@ -50,6 +51,10 @@ export default function App() {
         <Route
           path="/groups"
           element={isLoggedIn ? <Layout><GroupsPage /></Layout> : <Navigate to="/login" />}
+        />
+        <Route
+          path="/relationships"
+          element={isLoggedIn ? <Layout><RelationshipDashboard /></Layout> : <Navigate to="/login" />}
         />
         <Route
           path="/settings"
