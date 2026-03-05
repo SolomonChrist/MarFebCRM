@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit2, Save, X, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Edit2, Save, X, Plus, Trash2, Phone } from 'lucide-react';
 import { useUIStore } from '../store/useUIStore';
-import { Contact } from '../services/contacts/contactService';
+import { Contact, Interaction } from '../services/contacts/contactService';
 import { loadContacts, saveContacts } from '../services/storage/localStorageService';
+import QuickInteractionLogger from '../components/interactions/QuickInteractionLogger';
 
 interface ContactNote {
   id: string;
@@ -26,10 +27,12 @@ export default function ContactDetail() {
   const [contact, setContact] = useState<Contact | null>(null);
   const [notes, setNotes] = useState<ContactNote[]>([]);
   const [nextSteps, setNextSteps] = useState<NextStep[]>([]);
+  const [interactions, setInteractions] = useState<Interaction[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [newNote, setNewNote] = useState('');
   const [newNextStep, setNewNextStep] = useState('');
+  const [showInteractionLogger, setShowInteractionLogger] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Form state for editing
@@ -95,6 +98,20 @@ export default function ContactDetail() {
         } catch (error) {
           // Remove corrupted next steps data
           localStorage.removeItem(`contact_${found.id}_nextSteps`);
+        }
+
+        // Load interactions
+        try {
+          const savedInteractions = localStorage.getItem(`contact_${found.id}_interactions`);
+          if (savedInteractions) {
+            const parsed = JSON.parse(savedInteractions);
+            if (Array.isArray(parsed)) {
+              setInteractions(parsed);
+            }
+          }
+        } catch (error) {
+          // Remove corrupted interactions data
+          localStorage.removeItem(`contact_${found.id}_interactions`);
         }
       } catch (error) {
         console.error('Error loading contact:', error);
@@ -264,6 +281,54 @@ export default function ContactDetail() {
       ...formData,
       tags: formData.tags.filter(t => t !== tagToRemove)
     });
+  };
+
+  const handleLogInteraction = async (interaction: Interaction) => {
+    if (!contact) return;
+
+    try {
+      const updatedInteractions = [interaction, ...interactions];
+      setInteractions(updatedInteractions);
+      localStorage.setItem(`contact_${contact.id}_interactions`, JSON.stringify(updatedInteractions));
+
+      // Update contact's lastContactedAt
+      const contacts = await loadContacts();
+      const updated = contacts.map(c =>
+        c.id === contact.id
+          ? {
+              ...c,
+              lastContactedAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            }
+          : c
+      );
+      await saveContacts(updated);
+      setContact(updated.find(c => c.id === contact.id) || contact);
+
+      setShowInteractionLogger(false);
+      addToast({ message: 'Interaction logged successfully', type: 'success' });
+    } catch (error) {
+      console.error('Error logging interaction:', error);
+      addToast({ message: 'Failed to log interaction', type: 'error' });
+    }
+  };
+
+  const handleDeleteInteraction = async (interactionId: string) => {
+    if (!contact) return;
+
+    if (!window.confirm('Are you sure you want to delete this interaction? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const updatedInteractions = interactions.filter(i => i.id !== interactionId);
+      setInteractions(updatedInteractions);
+      localStorage.setItem(`contact_${contact.id}_interactions`, JSON.stringify(updatedInteractions));
+      addToast({ message: 'Interaction deleted', type: 'success' });
+    } catch (error) {
+      console.error('Error deleting interaction:', error);
+      addToast({ message: 'Failed to delete interaction', type: 'error' });
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -522,6 +587,16 @@ export default function ContactDetail() {
             {/* Add Note & Next Step */}
             <div className="space-y-4 mb-8 pb-6 border-b border-gray-200 dark:border-[#2d2d2d]">
               <div>
+                <button
+                  onClick={() => setShowInteractionLogger(true)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition mb-4"
+                >
+                  <Phone size={18} />
+                  Log Interaction
+                </button>
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Add Note
                 </label>
@@ -570,10 +645,64 @@ export default function ContactDetail() {
 
             {/* Timeline Items */}
             <div className="space-y-3">
-              {notes.length === 0 && nextSteps.length === 0 ? (
-                <p className="text-gray-500 dark:text-gray-400 text-center py-8">No activity yet. Add notes or next steps!</p>
+              {notes.length === 0 && nextSteps.length === 0 && interactions.length === 0 ? (
+                <p className="text-gray-500 dark:text-gray-400 text-center py-8">No activity yet. Log an interaction, add notes, or next steps!</p>
               ) : (
                 <>
+                  {/* Interactions */}
+                  {interactions.map((interaction) => (
+                    <div
+                      key={interaction.id}
+                      className="p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg"
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                          <span className="font-medium">📞 {interaction.interactionType === 'custom' ? interaction.customInteractionType : interaction.interactionType.charAt(0).toUpperCase() + interaction.interactionType.slice(1)}</span> • {formatDate(interaction.occurredAt)}
+                        </div>
+                        <button
+                          onClick={() => handleDeleteInteraction(interaction.id)}
+                          className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                      <div className="space-y-2">
+                        <div>
+                          <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 mb-1">Quick Note:</p>
+                          <p className="text-gray-900 dark:text-white whitespace-pre-wrap">{interaction.quickNote}</p>
+                        </div>
+                        {interaction.outcomeType && (
+                          <div>
+                            <p className="text-xs font-semibold text-purple-700 dark:text-purple-300">Outcome: {interaction.outcomeType}</p>
+                          </div>
+                        )}
+                        {interaction.potentialUseCase && (
+                          <div>
+                            <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 mb-1">Use Case:</p>
+                            <p className="text-sm text-gray-700 dark:text-gray-300">{interaction.potentialUseCase}</p>
+                          </div>
+                        )}
+                        {interaction.energyLevel && (
+                          <div>
+                            <p className="text-xs font-semibold text-purple-700 dark:text-purple-300">Energy: <span className="capitalize">{interaction.energyLevel}</span></p>
+                          </div>
+                        )}
+                        {interaction.notableMemories && (
+                          <div>
+                            <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 mb-1">Memories:</p>
+                            <p className="text-sm text-gray-700 dark:text-gray-300">{interaction.notableMemories}</p>
+                          </div>
+                        )}
+                        {interaction.growthOpportunity && (
+                          <div>
+                            <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 mb-1">Growth:</p>
+                            <p className="text-sm text-gray-700 dark:text-gray-300">{interaction.growthOpportunity}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
                   {/* Next Steps */}
                   {nextSteps.map((step) => (
                     <div
@@ -665,6 +794,17 @@ export default function ContactDetail() {
           </div>
         </div>
       </div>
+
+      {/* Interaction Logger Modal */}
+      {showInteractionLogger && contact && (
+        <QuickInteractionLogger
+          contactId={contact.id}
+          contactName={`${contact.firstName} ${contact.lastName || ''}`}
+          relationshipType={contact.relationshipType || 'business'}
+          onClose={() => setShowInteractionLogger(false)}
+          onLogInteraction={handleLogInteraction}
+        />
+      )}
     </div>
   );
 }

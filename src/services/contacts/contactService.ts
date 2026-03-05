@@ -21,6 +21,36 @@ export interface Contact {
   isArchived: boolean;
   createdAt: string;
   updatedAt: string;
+  // Relationship Context
+  relationshipType: 'business' | 'personal' | 'both';
+  relationshipLevel: 'acquaintance' | 'friend' | 'best_friend' | 'family' | 'student' | 'soulmate' | 'blacklisted' | 'fan' | 'custom';
+  customRelationshipLevel?: string;
+  relationalValueType: 'gainer' | 'connector' | 'helper' | 'drainer' | 'custom';
+  customRelationalValue?: string;
+  // Business metrics
+  revenue: number; // lifetime value
+  // Last contact tracking
+  lastContactedAt?: string;
+  nextScheduledContact?: string;
+}
+
+export interface Interaction {
+  id: string;
+  contactId: string;
+  userId: string;
+  interactionType: 'call' | 'email' | 'message' | 'meeting' | 'event' | 'custom';
+  customInteractionType?: string;
+  // Outcome/Energy tracking
+  outcomeType: string; // user-defined
+  energyLevel?: 'high' | 'medium' | 'low'; // personal side
+  // Use case (custom text)
+  potentialUseCase: string;
+  // Notes
+  notableMemories?: string;
+  growthOpportunity?: string;
+  quickNote: string;
+  createdAt: string;
+  occurredAt: string;
 }
 
 export interface TimelineEntry {
@@ -101,6 +131,11 @@ export async function createContact(
     email?: string;
     phone?: string;
     company?: string;
+    relationshipType?: 'business' | 'personal' | 'both';
+    relationshipLevel?: 'acquaintance' | 'friend' | 'best_friend' | 'family' | 'student' | 'soulmate' | 'blacklisted' | 'fan' | 'custom';
+    customRelationshipLevel?: string;
+    relationalValueType?: 'gainer' | 'connector' | 'helper' | 'drainer' | 'custom';
+    customRelationalValue?: string;
   },
 ): Promise<Contact> {
   const id = uuidv4();
@@ -120,10 +155,92 @@ export async function createContact(
     isArchived: false,
     createdAt: now,
     updatedAt: now,
+    relationshipType: data.relationshipType || 'business',
+    relationshipLevel: data.relationshipLevel || 'acquaintance',
+    customRelationshipLevel: data.customRelationshipLevel,
+    relationalValueType: data.relationalValueType || 'gainer',
+    customRelationalValue: data.customRelationalValue,
+    revenue: 0,
+    lastContactedAt: undefined,
+    nextScheduledContact: undefined,
   };
 
   console.log('Created contact object:', contact);
   return contact;
+}
+
+/**
+ * Add interaction for contact with full details
+ */
+export async function addInteraction(
+  userId: string,
+  contactId: string,
+  data: {
+    interactionType: 'call' | 'email' | 'message' | 'meeting' | 'event' | 'custom';
+    customInteractionType?: string;
+    outcomeType: string;
+    energyLevel?: 'high' | 'medium' | 'low';
+    potentialUseCase: string;
+    quickNote: string;
+    notableMemories?: string;
+    growthOpportunity?: string;
+    occurredAt?: string;
+  },
+): Promise<Interaction> {
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  const occurredAt = data.occurredAt || now;
+
+  const interaction: Interaction = {
+    id,
+    contactId,
+    userId,
+    interactionType: data.interactionType,
+    customInteractionType: data.customInteractionType,
+    outcomeType: data.outcomeType,
+    energyLevel: data.energyLevel,
+    potentialUseCase: data.potentialUseCase,
+    quickNote: data.quickNote,
+    notableMemories: data.notableMemories,
+    growthOpportunity: data.growthOpportunity,
+    createdAt: now,
+    occurredAt,
+  };
+
+  return interaction;
+}
+
+/**
+ * Update contact's lastContactedAt and optionally adjust HQ score
+ */
+export async function logContactInteraction(
+  userId: string,
+  contactId: string,
+  interaction: Interaction,
+  adjustHQScore: number = 0.5, // default +0.5 for any positive interaction
+): Promise<Contact | null> {
+  try {
+    const contact = await getContactById(userId, contactId);
+    if (!contact) return null;
+
+    // Store interaction in localStorage
+    const interactions = loadContactInteractions(contactId);
+    interactions.push(interaction);
+    saveContactInteractions(contactId, interactions);
+
+    // Update contact's lastContactedAt
+    const updatedContact: Contact = {
+      ...contact,
+      lastContactedAt: new Date().toISOString(),
+      hqScore: Math.min(10.0, contact.hqScore + adjustHQScore), // max 10.0
+      updatedAt: new Date().toISOString(),
+    };
+
+    return updatedContact;
+  } catch (error) {
+    console.error('Error logging contact interaction:', error);
+    throw error;
+  }
 }
 
 /**
@@ -143,39 +260,18 @@ export async function addTimelineEntry(
   const now = new Date().toISOString();
   const occurredAt = data.occurredAt || now;
 
-  try {
-    await runQuery(
-      `INSERT INTO timeline_entries (id, contact_id, user_id, entry_type, plain_text_content, visibility, is_encrypted, source, created_at, updated_at, occurred_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        contactId,
-        userId,
-        data.entryType || 'note',
-        data.plainTextContent,
-        'normal', // visibility
-        0, // not encrypted in v1
-        data.source || 'pasted',
-        now,
-        now,
-        occurredAt,
-      ],
-    );
+  const entry: TimelineEntry = {
+    id,
+    contactId,
+    userId,
+    entryType: data.entryType || 'note',
+    plainTextContent: data.plainTextContent,
+    source: data.source || 'pasted',
+    createdAt: now,
+    occurredAt,
+  };
 
-    return {
-      id,
-      contactId,
-      userId,
-      entryType: data.entryType || 'note',
-      plainTextContent: data.plainTextContent,
-      source: data.source || 'pasted',
-      createdAt: now,
-      occurredAt,
-    };
-  } catch (error) {
-    console.error('Error adding timeline entry:', error);
-    throw error;
-  }
+  return entry;
 }
 
 /**
@@ -253,6 +349,32 @@ export async function processExtractedContacts(
 }
 
 /**
+ * Load interactions for a contact
+ */
+export function loadContactInteractions(contactId: string): Interaction[] {
+  try {
+    const data = localStorage.getItem(`contact_${contactId}_interactions`);
+    if (!data) return [];
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error('Error loading interactions:', error);
+    return [];
+  }
+}
+
+/**
+ * Save interactions for a contact
+ */
+export function saveContactInteractions(contactId: string, interactions: Interaction[]): void {
+  try {
+    localStorage.setItem(`contact_${contactId}_interactions`, JSON.stringify(interactions));
+  } catch (error) {
+    console.error('Error saving interactions:', error);
+  }
+}
+
+/**
  * Helper: convert database row to Contact object
  */
 function rowToContact(row: any): Contact {
@@ -270,5 +392,9 @@ function rowToContact(row: any): Contact {
     isArchived: row.is_archived === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    relationshipType: 'business',
+    relationshipLevel: 'acquaintance',
+    relationalValueType: 'gainer',
+    revenue: 0,
   };
 }
