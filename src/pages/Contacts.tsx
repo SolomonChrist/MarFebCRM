@@ -14,6 +14,8 @@ export default function ContactsPage() {
   const { contacts, filters, setContacts, setFilters } = useContactStore();
   const [localLoading, setLocalLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkTag, setBulkTag] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load all contacts from localStorage on mount
@@ -128,6 +130,69 @@ export default function ContactsPage() {
         type: 'success',
       });
     }
+  };
+
+  const handleSelectContact = (contactId: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(contactId)) {
+      newSelected.delete(contactId);
+    } else {
+      newSelected.add(contactId);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.size === filteredContacts.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredContacts.map(c => c.id)));
+    }
+  };
+
+  const handleBulkArchive = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Archive ${selectedIds.size} contact(s)?`)) return;
+
+    const updatedContacts = contacts.map(c =>
+      selectedIds.has(c.id) ? { ...c, isArchived: true } : c
+    );
+    await saveContacts(updatedContacts);
+    setContacts(updatedContacts);
+    setSelectedIds(new Set());
+    addToast({ message: `Archived ${selectedIds.size} contact(s)`, type: 'success' });
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Permanently delete ${selectedIds.size} contact(s)? This cannot be undone.`)) return;
+
+    const updatedContacts = contacts.filter(c => !selectedIds.has(c.id));
+    await saveContacts(updatedContacts);
+    setContacts(updatedContacts);
+    setSelectedIds(new Set());
+    addToast({ message: `Deleted ${selectedIds.size} contact(s)`, type: 'success' });
+  };
+
+  const handleBulkTag = async () => {
+    if (selectedIds.size === 0 || !bulkTag.trim()) return;
+
+    const tag = bulkTag.trim();
+    const updatedContacts = contacts.map(c => {
+      if (selectedIds.has(c.id)) {
+        const tags = c.tags || [];
+        if (!tags.includes(tag)) {
+          return { ...c, tags: [...tags, tag] };
+        }
+      }
+      return c;
+    });
+
+    await saveContacts(updatedContacts);
+    setContacts(updatedContacts);
+    setBulkTag('');
+    setSelectedIds(new Set());
+    addToast({ message: `Tagged ${selectedIds.size} contact(s) with "${tag}"`, type: 'success' });
   };
 
   const formatDate = (dateString: string) => {
@@ -267,18 +332,93 @@ export default function ContactsPage() {
         </div>
       )}
 
+      {/* Bulk Actions Toolbar */}
+      {selectedIds.size > 0 && (
+        <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-4 mb-6 flex items-center justify-between">
+          <div>
+            <p className="font-semibold text-indigo-900 dark:text-indigo-300">
+              {selectedIds.size} contact{selectedIds.size !== 1 ? 's' : ''} selected
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <input
+              type="text"
+              placeholder="Add tag..."
+              value={bulkTag}
+              onChange={(e) => setBulkTag(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleBulkTag()}
+              className="px-3 py-1 border border-indigo-300 dark:border-indigo-700 rounded-lg bg-white dark:bg-[#0f0f0f] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-600"
+            />
+            <button
+              onClick={handleBulkTag}
+              disabled={!bulkTag.trim()}
+              className="px-4 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white font-medium rounded-lg transition text-sm"
+            >
+              Tag
+            </button>
+            <button
+              onClick={handleBulkArchive}
+              className="px-4 py-1 bg-yellow-600 hover:bg-yellow-700 text-white font-medium rounded-lg transition text-sm"
+            >
+              Archive
+            </button>
+            <button
+              onClick={handleBulkDelete}
+              className="px-4 py-1 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition text-sm"
+            >
+              Delete
+            </button>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="px-4 py-1 bg-gray-300 dark:bg-[#2d2d2d] hover:bg-gray-400 dark:hover:bg-[#3d3d3d] text-gray-900 dark:text-white font-medium rounded-lg transition text-sm"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Contacts List */}
       {!localLoading && filteredContacts.length > 0 && (
         <div className="space-y-3">
+          {/* Select All Row */}
+          {filteredContacts.length > 0 && (
+            <div className="bg-gray-50 dark:bg-[#0f0f0f] rounded-lg border border-gray-200 dark:border-[#2d2d2d] p-4 flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={selectedIds.size === filteredContacts.length && filteredContacts.length > 0}
+                onChange={handleSelectAll}
+                className="w-5 h-5 cursor-pointer"
+              />
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Select All ({filteredContacts.length})
+              </span>
+            </div>
+          )}
+
           {filteredContacts.map((contact) => (
             <div
               key={contact.id}
-              className="bg-white dark:bg-[#1a1a1a] rounded-lg border border-gray-200 dark:border-[#2d2d2d] p-4 hover:shadow-md transition flex items-center justify-between group"
+              className={`bg-white dark:bg-[#1a1a1a] rounded-lg border transition flex items-center justify-between group ${
+                selectedIds.has(contact.id)
+                  ? 'border-indigo-400 dark:border-indigo-600 shadow-md'
+                  : 'border-gray-200 dark:border-[#2d2d2d] hover:shadow-md'
+              }`}
             >
+              {/* Checkbox */}
+              <div className="p-4">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(contact.id)}
+                  onChange={() => handleSelectContact(contact.id)}
+                  className="w-5 h-5 cursor-pointer"
+                />
+              </div>
+
               {/* Contact Info */}
               <div
                 onClick={() => handleViewContact(contact.id)}
-                className="flex-1 cursor-pointer"
+                className="flex-1 cursor-pointer p-4"
               >
                 <div className="flex items-center gap-3">
                   {/* Avatar */}
@@ -321,7 +461,7 @@ export default function ContactsPage() {
               </div>
 
               {/* Quick Actions */}
-              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition">
+              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition pr-4">
                 {/* View Button */}
                 <button
                   onClick={() => handleViewContact(contact.id)}
