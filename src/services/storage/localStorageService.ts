@@ -151,6 +151,68 @@ export function downloadDataAsJSON(contacts: Contact[]): void {
 }
 
 /**
+ * Download contacts as CSV file
+ */
+export function downloadDataAsCSV(contacts: Contact[]): void {
+  // Define CSV headers
+  const headers = [
+    'First Name',
+    'Last Name',
+    'Email',
+    'Phone',
+    'Company',
+    'Tags',
+    'HQ Score',
+    'Relationship Type',
+    'Relationship Level',
+    'Relational Value Type',
+    'Created Date',
+    'Last Updated',
+    'Last Contacted',
+    'Next Scheduled',
+    'Favorite',
+    'Archived',
+  ];
+
+  // Convert contacts to CSV rows
+  const rows = contacts.map(contact => [
+    contact.firstName,
+    contact.lastName || '',
+    contact.email || '',
+    contact.phone || '',
+    contact.company || '',
+    (contact.tags || []).join(';'),
+    contact.hqScore.toFixed(1),
+    contact.relationshipType || '',
+    (contact.relationshipLevel || '').replace(/_/g, ' '),
+    (contact.relationalValueType || '').replace(/_/g, ' '),
+    new Date(contact.createdAt).toLocaleDateString(),
+    new Date(contact.updatedAt).toLocaleDateString(),
+    contact.lastContactedAt ? new Date(contact.lastContactedAt).toLocaleDateString() : '',
+    contact.nextScheduledContact ? new Date(contact.nextScheduledContact).toLocaleDateString() : '',
+    contact.isFavorite ? 'Yes' : 'No',
+    contact.isArchived ? 'Yes' : 'No',
+  ]);
+
+  // Create CSV content
+  const csvContent = [
+    headers.map(h => `"${h}"`).join(','),
+    ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+  ].join('\n');
+
+  // Download CSV
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `marfebcrm-contacts-${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+/**
  * Import data from JSON file
  */
 export async function importDataFromFile(file: File): Promise<Contact[]> {

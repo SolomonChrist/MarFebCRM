@@ -5,7 +5,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useContactStore } from '../store/useContactStore';
 import { useUIStore } from '../store/useUIStore';
 import { Contact } from '../services/contacts/contactService';
-import { loadContacts, saveContacts, downloadDataAsJSON, importDataFromFile } from '../services/storage/localStorageService';
+import { loadContacts, saveContacts, downloadDataAsJSON, downloadDataAsCSV, importDataFromFile } from '../services/storage/localStorageService';
 
 export default function ContactsPage() {
   const navigate = useNavigate();
@@ -41,11 +41,26 @@ export default function ContactsPage() {
     loadContactsFromStorage();
   }, [setContacts, addToast]);
 
-  const handleExportData = () => {
+  const handleExportDataAsJSON = () => {
     try {
       downloadDataAsJSON(contacts);
       addToast({
-        message: `Exported ${contacts.length} contact(s) successfully`,
+        message: `Exported ${contacts.length} contact(s) as JSON successfully`,
+        type: 'success',
+      });
+    } catch (err) {
+      addToast({
+        message: 'Failed to export data',
+        type: 'error',
+      });
+    }
+  };
+
+  const handleExportDataAsCSV = () => {
+    try {
+      downloadDataAsCSV(contacts);
+      addToast({
+        message: `Exported ${contacts.length} contact(s) as CSV successfully`,
         type: 'success',
       });
     } catch (err) {
@@ -269,21 +284,34 @@ export default function ContactsPage() {
 
         {/* Export/Import buttons */}
         <div className="flex gap-3">
-          <button
-            onClick={handleExportData}
-            disabled={contacts.length === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold rounded-lg transition"
-          >
-            <Download size={18} />
-            Export Data ({contacts.length})
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleExportDataAsJSON}
+              disabled={contacts.length === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold rounded-lg transition text-sm"
+              title="Export as JSON (includes notes, next steps, interactions)"
+            >
+              <Download size={18} />
+              JSON ({contacts.length})
+            </button>
+
+            <button
+              onClick={handleExportDataAsCSV}
+              disabled={contacts.length === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold rounded-lg transition text-sm"
+              title="Export as CSV (basic contact info)"
+            >
+              <Download size={18} />
+              CSV ({contacts.length})
+            </button>
+          </div>
 
           <button
             onClick={() => fileInputRef.current?.click()}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition"
           >
             <Upload size={18} />
-            Import Data
+            Import
           </button>
 
           <input
