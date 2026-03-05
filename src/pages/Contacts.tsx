@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Star, Archive, Eye, Trash2, Download, Upload } from 'lucide-react';
+import { Search, Star, Archive, Eye, Trash2, Download, Upload, Clock, CalendarCheck } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { useContactStore } from '../store/useContactStore';
 import { useUIStore } from '../store/useUIStore';
@@ -291,9 +291,23 @@ export default function ContactsPage() {
                     <h3 className="font-semibold text-gray-900 dark:text-white">
                       {contact.firstName} {contact.lastName || ''}
                     </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Last updated: {formatDate(contact.updatedAt)}
-                    </p>
+                    <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {contact.lastContactedAt && (
+                        <div className="flex items-center gap-1">
+                          <Clock size={14} className="text-blue-600 dark:text-blue-400" />
+                          <span>{formatDate(contact.lastContactedAt)}</span>
+                        </div>
+                      )}
+                      {contact.nextScheduledContact && (
+                        <div className="flex items-center gap-1">
+                          <CalendarCheck size={14} className="text-green-600 dark:text-green-400" />
+                          <span className="text-green-600 dark:text-green-400 font-semibold">{formatDate(contact.nextScheduledContact)}</span>
+                        </div>
+                      )}
+                      {!contact.lastContactedAt && !contact.nextScheduledContact && (
+                        <span>No interactions yet</span>
+                      )}
+                    </div>
                   </div>
 
                   {/* HQ Score */}
