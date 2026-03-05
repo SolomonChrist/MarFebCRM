@@ -33,6 +33,7 @@ export default function ContactDetail() {
   const [newNote, setNewNote] = useState('');
   const [newNextStep, setNewNextStep] = useState('');
   const [showInteractionLogger, setShowInteractionLogger] = useState(false);
+  const [interactionFilter, setInteractionFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
 
   // Form state for editing
@@ -283,7 +284,7 @@ export default function ContactDetail() {
     });
   };
 
-  const handleLogInteraction = async (interaction: Interaction) => {
+  const handleLogInteraction = async (interaction: Interaction, nextScheduledContact?: string) => {
     if (!contact) return;
 
     try {
@@ -291,13 +292,14 @@ export default function ContactDetail() {
       setInteractions(updatedInteractions);
       localStorage.setItem(`contact_${contact.id}_interactions`, JSON.stringify(updatedInteractions));
 
-      // Update contact's lastContactedAt
+      // Update contact's lastContactedAt and nextScheduledContact
       const contacts = await loadContacts();
       const updated = contacts.map(c =>
         c.id === contact.id
           ? {
               ...c,
               lastContactedAt: new Date().toISOString(),
+              nextScheduledContact: nextScheduledContact || c.nextScheduledContact,
               updatedAt: new Date().toISOString(),
             }
           : c
@@ -580,9 +582,25 @@ export default function ContactDetail() {
 
           {/* Activity Timeline - Notes & Next Steps */}
           <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-[#2d2d2d] p-6">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6">
-              📋 Activity Timeline
-            </h3>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                📋 Activity Timeline
+              </h3>
+              {interactions.length > 0 && (
+                <select
+                  value={interactionFilter}
+                  onChange={(e) => setInteractionFilter(e.target.value)}
+                  className="px-3 py-1 text-sm border border-gray-300 dark:border-[#2d2d2d] rounded-lg bg-white dark:bg-[#0f0f0f] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                >
+                  <option value="all">All interactions</option>
+                  <option value="call">Calls</option>
+                  <option value="email">Emails</option>
+                  <option value="message">Messages</option>
+                  <option value="meeting">Meetings</option>
+                  <option value="event">Events</option>
+                </select>
+              )}
+            </div>
 
             {/* Add Note & Next Step */}
             <div className="space-y-4 mb-8 pb-6 border-b border-gray-200 dark:border-[#2d2d2d]">
@@ -650,7 +668,9 @@ export default function ContactDetail() {
               ) : (
                 <>
                   {/* Interactions */}
-                  {interactions.map((interaction) => (
+                  {interactions
+                    .filter(i => interactionFilter === 'all' || i.interactionType === interactionFilter)
+                    .map((interaction) => (
                     <div
                       key={interaction.id}
                       className="p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg"
@@ -789,6 +809,54 @@ export default function ContactDetail() {
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Last Updated</p>
                 <p className="text-sm text-gray-900 dark:text-white">{formatDate(contact.updatedAt)}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Contact Activity */}
+          <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-[#2d2d2d] p-6">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Activity</h3>
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Last Contacted</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {contact.lastContactedAt ? formatDate(contact.lastContactedAt) : '—'}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Next Scheduled</p>
+                <p className={`text-sm font-semibold ${contact.nextScheduledContact ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
+                  {contact.nextScheduledContact ? formatDate(contact.nextScheduledContact) : '—'}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Interactions</p>
+                <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{interactions.length}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Relationship Info */}
+          <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-[#2d2d2d] p-6">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Relationship</h3>
+            <div className="space-y-3">
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Type</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white capitalize">
+                  {contact.relationshipType || '—'}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Level</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white capitalize">
+                  {contact.relationshipLevel?.replace('_', ' ') || '—'}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Value Type</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white capitalize">
+                  {contact.relationalValueType?.replace('_', ' ') || '—'}
+                </p>
               </div>
             </div>
           </div>

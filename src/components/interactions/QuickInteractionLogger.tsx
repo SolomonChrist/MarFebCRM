@@ -8,7 +8,7 @@ interface QuickInteractionLoggerProps {
   contactName: string;
   relationshipType: 'business' | 'personal' | 'both';
   onClose: () => void;
-  onLogInteraction: (interaction: Interaction) => void;
+  onLogInteraction: (interaction: Interaction, nextScheduledContact?: string) => void;
 }
 
 export default function QuickInteractionLogger({
@@ -26,6 +26,7 @@ export default function QuickInteractionLogger({
   const [potentialUseCase, setPotentialUseCase] = useState('');
   const [notableMemories, setNotableMemories] = useState('');
   const [growthOpportunity, setGrowthOpportunity] = useState('');
+  const [nextScheduledContact, setNextScheduledContact] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -65,7 +66,7 @@ export default function QuickInteractionLogger({
         occurredAt: new Date().toISOString(),
       };
 
-      onLogInteraction(interaction);
+      onLogInteraction(interaction, nextScheduledContact || undefined);
       onClose();
     } catch (error) {
       console.error('Error logging interaction:', error);
@@ -232,6 +233,20 @@ export default function QuickInteractionLogger({
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
               rows={2}
             />
+          </div>
+
+          {/* Next Scheduled Contact */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-2">
+              Next Scheduled Contact
+            </label>
+            <input
+              type="date"
+              value={nextScheduledContact}
+              onChange={(e) => setNextScheduledContact(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-gray-600 mt-1">Optional: When do you plan to contact them next?</p>
           </div>
 
           {/* Submit Button */}
