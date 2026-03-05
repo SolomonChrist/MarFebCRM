@@ -28,6 +28,10 @@ export default function Dashboard() {
   const [favoriteContacts, setFavoriteContacts] = useState<Contact[]>([]);
   const [allContacts, setAllContacts] = useState<Contact[]>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
+  const [totalInteractions, setTotalInteractions] = useState(0);
+  const [contactsAddedThisWeek, setContactsAddedThisWeek] = useState(0);
+  const [overdueContacts, setOverdueContacts] = useState(0);
+  const [dueTodayContacts, setDueTodayContacts] = useState(0);
 
   // Load contact count, favorites, and recent activity on mount
   useEffect(() => {
@@ -38,6 +42,54 @@ export default function Dashboard() {
         setAllContacts(contacts);
         const favorites = contacts.filter(c => c.isFavorite);
         setFavoriteContacts(favorites);
+
+        // Calculate metrics
+        const now = new Date();
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+
+        let totalInteractionsCount = 0;
+        let addedThisWeek = 0;
+        let overdue = 0;
+        let dueToday = 0;
+
+        contacts.forEach(contact => {
+          // Count interactions
+          try {
+            const interactionsData = localStorage.getItem(`contact_${contact.id}_interactions`);
+            if (interactionsData) {
+              const parsed = JSON.parse(interactionsData);
+              if (Array.isArray(parsed)) {
+                totalInteractionsCount += parsed.length;
+              }
+            }
+          } catch (error) {
+            // Skip corrupted data
+          }
+
+          // Count contacts added this week
+          if (new Date(contact.createdAt) > weekAgo) {
+            addedThisWeek++;
+          }
+
+          // Count overdue and due today
+          if (contact.nextScheduledContact) {
+            const scheduledDate = new Date(contact.nextScheduledContact);
+            const scheduledDay = new Date(scheduledDate.getFullYear(), scheduledDate.getMonth(), scheduledDate.getDate());
+
+            if (scheduledDay < today) {
+              overdue++;
+            } else if (scheduledDay.getTime() === today.getTime()) {
+              dueToday++;
+            }
+          }
+        });
+
+        setTotalInteractions(totalInteractionsCount);
+        setContactsAddedThisWeek(addedThisWeek);
+        setOverdueContacts(overdue);
+        setDueTodayContacts(dueToday);
 
         // Load recent activity from all contacts
         const activity: ActivityItem[] = [];
@@ -124,6 +176,50 @@ export default function Dashboard() {
       const favorites = updatedContacts.filter(c => c.isFavorite);
       setFavoriteContacts(favorites);
 
+      // Recalculate metrics
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      let totalInteractionsCount = 0;
+      let addedThisWeek = 0;
+      let overdue = 0;
+      let dueToday = 0;
+
+      updatedContacts.forEach(contact => {
+        try {
+          const interactionsData = localStorage.getItem(`contact_${contact.id}_interactions`);
+          if (interactionsData) {
+            const parsed = JSON.parse(interactionsData);
+            if (Array.isArray(parsed)) {
+              totalInteractionsCount += parsed.length;
+            }
+          }
+        } catch (error) {
+          // Skip
+        }
+
+        if (new Date(contact.createdAt) > weekAgo) {
+          addedThisWeek++;
+        }
+
+        if (contact.nextScheduledContact) {
+          const scheduledDate = new Date(contact.nextScheduledContact);
+          const scheduledDay = new Date(scheduledDate.getFullYear(), scheduledDate.getMonth(), scheduledDate.getDate());
+
+          if (scheduledDay < today) {
+            overdue++;
+          } else if (scheduledDay.getTime() === today.getTime()) {
+            dueToday++;
+          }
+        }
+      });
+
+      setTotalInteractions(totalInteractionsCount);
+      setContactsAddedThisWeek(addedThisWeek);
+      setOverdueContacts(overdue);
+      setDueTodayContacts(dueToday);
+
       // Reload recent activity
       const activity: ActivityItem[] = [];
       updatedContacts.forEach(contact => {
@@ -194,9 +290,9 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <StatCard label="Total Contacts" value={contactCount.toString()} color="indigo" />
-        <StatCard label="This Week" value="0" color="blue" />
-        <StatCard label="Overdue" value="0" color="red" />
-        <StatCard label="Due Today" value="0" color="green" />
+        <StatCard label="Interactions" value={totalInteractions.toString()} color="blue" />
+        <StatCard label="Overdue" value={overdueContacts.toString()} color="red" />
+        <StatCard label="Due Today" value={dueTodayContacts.toString()} color="green" />
       </div>
 
       {/* Favorite Contacts Section */}
