@@ -143,7 +143,9 @@ export function downloadDataAsJSON(contacts: Contact[]): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `marfebcrm-backup-${new Date().toISOString().split('T')[0]}.json`;
+  const now = new Date();
+  const timestamp = now.toISOString().replace(/[:.]/g, '-').split('.')[0];
+  link.download = `marfebcrm-backup-${timestamp}.json`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -205,7 +207,9 @@ export function downloadDataAsCSV(contacts: Contact[]): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `marfebcrm-contacts-${new Date().toISOString().split('T')[0]}.csv`;
+  const now = new Date();
+  const timestamp = now.toISOString().replace(/[:.]/g, '-').split('.')[0];
+  link.download = `marfebcrm-contacts-${timestamp}.csv`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

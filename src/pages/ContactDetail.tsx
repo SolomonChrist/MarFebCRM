@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit2, Save, X, Plus, Trash2, Phone, Clock } from 'lucide-react';
+import { ArrowLeft, Edit2, Save, X, Plus, Trash2, Phone, Clock, Copy, Check } from 'lucide-react';
 import { useUIStore } from '../store/useUIStore';
 import { Contact, Interaction, Reminder, loadReminders, saveReminders } from '../services/contacts/contactService';
 import { loadContacts, saveContacts } from '../services/storage/localStorageService';
@@ -38,6 +38,9 @@ export default function ContactDetail() {
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [interactionFilter, setInteractionFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState('');
+  const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null);
 
   // Form state for editing
   const [formData, setFormData] = useState({
@@ -211,6 +214,46 @@ export default function ContactDetail() {
     } catch (error) {
       console.error('Error deleting note:', error);
       addToast({ message: 'Failed to delete note', type: 'error' });
+    }
+  };
+
+  const handleEditNote = (noteId: string, content: string) => {
+    setEditingNoteId(noteId);
+    setEditingContent(content);
+  };
+
+  const handleSaveNote = async (noteId: string) => {
+    if (!contact || !editingContent.trim()) return;
+
+    try {
+      const updatedNotes = notes.map(n =>
+        n.id === noteId ? { ...n, content: editingContent } : n
+      );
+      setNotes(updatedNotes);
+      localStorage.setItem(`contact_${contact.id}_notes`, JSON.stringify(updatedNotes));
+      setEditingNoteId(null);
+      setEditingContent('');
+      addToast({ message: 'Note updated', type: 'success' });
+    } catch (error) {
+      console.error('Error saving note:', error);
+      addToast({ message: 'Failed to save note', type: 'error' });
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingNoteId(null);
+    setEditingContent('');
+  };
+
+  const handleCopyNote = async (content: string, noteId: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedNoteId(noteId);
+      addToast({ message: 'Note copied to clipboard', type: 'success' });
+      setTimeout(() => setCopiedNoteId(null), 2000);
+    } catch (error) {
+      console.error('Error copying to clipboard:', error);
+      addToast({ message: 'Failed to copy note', type: 'error' });
     }
   };
 
@@ -840,14 +883,66 @@ export default function ContactDetail() {
                         <div className="text-sm text-gray-600 dark:text-gray-400">
                           <span className="font-medium">📝 Note</span> • {formatDate(note.createdAt)} at {formatTime(note.createdAt)}
                         </div>
-                        <button
-                          onClick={() => handleDeleteNote(note.id)}
-                          className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <div className="flex items-center gap-2">
+                          {editingNoteId === note.id ? (
+                            <>
+                              <button
+                                onClick={() => handleSaveNote(note.id)}
+                                className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 transition"
+                                title="Save note"
+                              >
+                                <Save size={16} />
+                              </button>
+                              <button
+                                onClick={handleCancelEdit}
+                                className="text-gray-600 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 transition"
+                                title="Cancel editing"
+                              >
+                                <X size={16} />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleCopyNote(note.content, note.id)}
+                                className={`transition ${
+                                  copiedNoteId === note.id
+                                    ? 'text-green-600 dark:text-green-400'
+                                    : 'text-gray-600 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                                }`}
+                                title="Copy to clipboard"
+                              >
+                                {copiedNoteId === note.id ? <Check size={16} /> : <Copy size={16} />}
+                              </button>
+                              <button
+                                onClick={() => handleEditNote(note.id, note.content)}
+                                className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition"
+                                title="Edit note"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteNote(note.id)}
+                                className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition"
+                                title="Delete note"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <p className="text-gray-900 dark:text-white whitespace-pre-wrap">{note.content}</p>
+                      {editingNoteId === note.id ? (
+                        <textarea
+                          value={editingContent}
+                          onChange={(e) => setEditingContent(e.target.value)}
+                          className="w-full p-3 border border-blue-300 dark:border-blue-700 rounded-lg bg-white dark:bg-[#0f0f0f] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-600 resize-none"
+                          rows={4}
+                          autoFocus
+                        />
+                      ) : (
+                        <p className="text-gray-900 dark:text-white whitespace-pre-wrap">{note.content}</p>
+                      )}
                     </div>
                   ))}
                 </>
