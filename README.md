@@ -1,5 +1,5 @@
 # MarFebCRM - Personal Relationship Manager
-
+ 
 A fast, privacy-first personal CRM for managing contacts, interactions, notes, and follow-ups. **100% local, no backend required.**
 
 ![Build Status](https://github.com/your-username/MarFebCRM/actions/workflows/build.yml/badge.svg)
